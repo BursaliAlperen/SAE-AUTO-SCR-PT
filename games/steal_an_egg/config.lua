@@ -1,6 +1,6 @@
--- ScriptVault Steal an Egg 6.6 configuration
+-- ScriptVault Steal an Egg 6.7 configuration
 return {
-    VERSION = "6.6.0",
+    VERSION = "6.7.0",
     GAME = "Steal an Egg",
     PRIMARY_PLACE_IDS = {107778070777162},
     REMOTE_COOLDOWN = 0.35,

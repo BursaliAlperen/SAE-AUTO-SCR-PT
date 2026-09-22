@@ -42,6 +42,17 @@ if not Players or not UIS or not TS or not WS or not RS then
 end
 local LP = Players.LocalPlayer
 if not LP then LOG("FATAL: LocalPlayer missing"); return end
+
+-- Each injection gets its own runtime id. Older injections stop their loops
+-- after a newer copy replaces this value in the shared executor environment.
+local GLOBAL_ENV = (type(getgenv) == "function" and getgenv()) or _G
+local SV_RUNTIME_ID = tostring({})
+if GLOBAL_ENV then
+    GLOBAL_ENV.SV_RUNTIME_ID = SV_RUNTIME_ID
+end
+local function isCurrentRuntime()
+    return not GLOBAL_ENV or GLOBAL_ENV.SV_RUNTIME_ID == SV_RUNTIME_ID
+end
 LOG("Player:", LP.Name)
 
 local IS_TOUCH = UIS and UIS.TouchEnabled and not UIS.KeyboardEnabled
@@ -310,7 +321,7 @@ CurLang = loadLang()
 -- STATE
 -- ═══════════════════════════════════════════════════════════════
 local CFG = {
-    VER = "6.0.1",
+    VER = "6.0.2",
     MAX_SPEED = 26, MIN_SPEED = 16,
     SCAN_RADIUS = 500,
     DRAG_PX = 18, TAP = 0.30,
@@ -841,7 +852,7 @@ local function cleanStaleESP(kind)
 end
 
 task.spawn(function()
-    while true do
+    while isCurrentRuntime() do
         pcall(function()
             if S.espEgg then
                 cleanStaleESP("SV_ESP_EGG")
@@ -938,6 +949,7 @@ end)
 -- PLAYER LOOPS
 -- ═══════════════════════════════════════════════════════════════
 LP.Idled:Connect(function()
+    if not isCurrentRuntime() then return end
     if S.antiAfk and VirtualUser then
         pcall(function()
             VirtualUser:CaptureController()
@@ -949,7 +961,7 @@ end)
 local noclipOriginal = {}
 
 task.spawn(function()
-    while true do
+    while isCurrentRuntime() do
         if S.noclip then
             local c = LP.Character
             if c then
@@ -977,7 +989,7 @@ task.spawn(function()
 end)
 
 task.spawn(function()
-    while true do
+    while isCurrentRuntime() do
         local h = hum()
         if h then
             local target = math.clamp(S.walkSpeed, CFG.MIN_SPEED, 200)
@@ -2217,7 +2229,7 @@ hiddenRef.fn = setHidden
 
 -- Keybinds
 UIS.InputBegan:Connect(function(input, processed)
-    if processed then return end
+    if not isCurrentRuntime() or processed then return end
     if input.KeyCode == Enum.KeyCode.F1 then
         panel.Visible = not panel.Visible
         setHidden(panel.Visible)

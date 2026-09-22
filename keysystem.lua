@@ -7,7 +7,7 @@ return (function()
 
     local KEYS_URL = "https://raw.githubusercontent.com/BursaliAlperen/SAE-AUTO-SCR-PT/main/keys.json"
     local GET_KEY_URL = "https://github.com/BursaliAlperen/SAE-AUTO-SCR-PT"
-    local DISCORD_URL = "https://discord.gg/YOURINVITE"
+    local YOUTUBE_URL = "https://youtube.com/@YOURCHANNEL"
 
     local CACHE_SECONDS = 24 * 60 * 60
     local FILE_HWID, FILE_KEY, FILE_VERIFY = "sv_hwid.txt", "sv_key.txt", "sv_verify.json"
@@ -326,17 +326,17 @@ return (function()
     },card)
     make("UICorner",{CornerRadius=UDim.new(0,11)},getKey)
 
-    local discord = make("TextButton",{
+    local youtube = make("TextButton",{
         Size=UDim2.fromOffset(145,42),
         Position=UDim2.fromOffset(207,340),
         BackgroundColor3=Color3.fromRGB(239,245,255),
         BorderSizePixel=0,
-        Text="Discord",
+        Text="YouTube",
         Font=Enum.Font.GothamBold,
         TextSize=13,
         TextColor3=Color3.fromRGB(35,116,255)
     },card)
-    make("UICorner",{CornerRadius=UDim.new(0,11)},discord)
+    make("UICorner",{CornerRadius=UDim.new(0,11)},youtube)
 
     make("TextLabel",{
         Size=UDim2.new(1,-56,0,28),
@@ -368,7 +368,7 @@ return (function()
     end
 
     getKey.Activated:Connect(function() copy(GET_KEY_URL,"Get Key link") end)
-    discord.Activated:Connect(function() copy(DISCORD_URL,"Discord link") end)
+    youtube.Activated:Connect(function() copy(YOUTUBE_URL,"YouTube link") end)
 
     local busy=false
     local function finish(info)

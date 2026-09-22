@@ -1122,6 +1122,12 @@ local function buildPanel(parent, notif)
         AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.new(0, 26, 0.5, 0),
         Size = UDim2.new(0, W, 0, H), Visible = false, ZIndex = 9000,
     })
+    local panelShadow = mk("Frame", {
+        Parent = panel, BackgroundColor3 = C.shadow, BackgroundTransparency = 0.82,
+        Position = UDim2.new(0, 8, 0, 10), Size = UDim2.new(1, -16, 1, -8),
+        BorderSizePixel = 0, ZIndex = 8999,
+    })
+    mk("UICorner", { Parent = panelShadow, CornerRadius = UDim.new(0, 24) })
     mk("UICorner", { Parent = panel, CornerRadius = UDim.new(0, 22) })
     mk("UIStroke", { Parent = panel, Color = C.border, Thickness = 1, Transparency = 0.3 })
 
@@ -1257,6 +1263,7 @@ local function buildPanel(parent, notif)
         for tid, b in pairs(navBtns) do
             local on = tid == id
             b.TextColor3 = on and C.white or C.text_mut
+            b.BackgroundTransparency = on and 0 or 1
             local ic = b:FindFirstChild("TabIcon")
             if ic then ic.TextColor3 = on and C.white or C.text_mut end
             local lbl = b:FindFirstChild("TabLabel")
@@ -1291,6 +1298,16 @@ local function buildPanel(parent, notif)
         })
         lbl.Name = "TabLabel"
         lbl:SetAttribute("i18n", tb.label)
+        b.MouseEnter:Connect(function()
+            if active ~= tb.id then
+                tw(b, 0.15, { BackgroundColor3 = C.hover, BackgroundTransparency = 0.15 })
+            end
+        end)
+        b.MouseLeave:Connect(function()
+            if active ~= tb.id then
+                tw(b, 0.15, { BackgroundTransparency = 1 })
+            end
+        end)
         b.Activated:Connect(function() switchTab(tb.id, idx) end)
         navBtns[tb.id] = b
 
@@ -1314,6 +1331,59 @@ local function buildPanel(parent, notif)
     U.stat(dp, "st_tries", function() return S.stats.tries end, C.primary)
     U.stat(dp, "st_pets", function() return S.stats.pets end, C.success)
     U.stat(dp, "st_uptime", function() return os.time() - S.stats.startTime end, C.text_mut, true)
+
+    -- LIVE CONTROL CARD
+    local liveWrap, liveCard = U.card(dp, 92)
+    liveCard.BackgroundColor3 = C.bg_deep
+    local liveAccent = mk("Frame", {
+        Parent = liveCard, BackgroundColor3 = C.primary,
+        Size = UDim2.new(0, 4, 1, 0), BorderSizePixel = 0, ZIndex = 9003,
+    })
+    mk("UICorner", { Parent = liveAccent, CornerRadius = UDim.new(1, 0) })
+    local liveTitle = mk("TextLabel", {
+        Parent = liveCard, BackgroundTransparency = 1,
+        Position = UDim2.new(0, 16, 0, 10), Size = UDim2.new(1, -32, 0, 18),
+        Font = Enum.Font.GothamBold, Text = "LIVE CONTROL CENTER",
+        TextColor3 = C.text, TextSize = 11, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 9004,
+    })
+    local liveState = mk("TextLabel", {
+        Parent = liveCard, BackgroundTransparency = 1,
+        Position = UDim2.new(0, 16, 0, 34), Size = UDim2.new(0.55, 0, 0, 20),
+        Font = Enum.Font.GothamBold, Text = "● IDLE", TextColor3 = C.text_mut,
+        TextSize = 13, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 9004,
+    })
+    local liveMeta = mk("TextLabel", {
+        Parent = liveCard, BackgroundTransparency = 1,
+        Position = UDim2.new(0, 16, 0, 57), Size = UDim2.new(0.6, 0, 0, 16),
+        Font = Enum.Font.Gotham, Text = "Eggs 0  •  Tries 0", TextColor3 = C.text_dim,
+        TextSize = 9, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 9004,
+    })
+    local quick = mk("TextButton", {
+        Parent = liveCard, BackgroundColor3 = C.primary,
+        Position = UDim2.new(1, -106, 0.5, 0), Size = UDim2.new(0, 92, 0, 34),
+        AnchorPoint = Vector2.new(0, 0.5), Text = "START FARM",
+        Font = Enum.Font.GothamBold, TextColor3 = C.white, TextSize = 10,
+        AutoButtonColor = false, BorderSizePixel = 0, ZIndex = 9004,
+    })
+    mk("UICorner", { Parent = quick, CornerRadius = UDim.new(0, 10) })
+    quick.Activated:Connect(function()
+        local on = not S.masterFarm
+        S.masterFarm = on
+        if toggles.masterFarm then toggles.masterFarm(on, true) end
+        if on then Farm:start() else Farm:stop() end
+    end)
+    task.spawn(function()
+        while liveCard.Parent do
+            local running = S.masterFarm or S.autoSteal or S.autoHatch
+            liveState.Text = running and "● RUNNING" or "● IDLE"
+            liveState.TextColor3 = running and C.success or C.text_mut
+            liveAccent.BackgroundColor3 = running and C.success or C.primary
+            quick.Text = running and "STOP FARM" or "START FARM"
+            quick.BackgroundColor3 = running and C.danger or C.primary
+            liveMeta.Text = string.format("Eggs %d  •  Tries %d  •  Pets %d", S.stats.eggs, S.stats.tries, S.stats.pets)
+            task.wait(0.5)
+        end
+    end)
 
     U.section(dp, "s_master", C.primary)
     U.toggle(dp, "t_master", "t_master_d", "masterFarm", function(on)
@@ -1639,6 +1709,11 @@ local function buildPanel(parent, notif)
             panel.Position = UDim2.new(0, sp_.X.Offset + d.X, 0.5, sp_.Y.Offset + d.Y)
         end
     end)
+
+    closeBtn.MouseEnter:Connect(function() tw(closeBtn, 0.15, { BackgroundColor3 = C.danger }) end)
+    closeBtn.MouseLeave:Connect(function() tw(closeBtn, 0.15, { BackgroundColor3 = C.danger_l }) end)
+    langBtn.MouseEnter:Connect(function() tw(langBtn, 0.15, { BackgroundColor3 = C.primary_l }) end)
+    langBtn.MouseLeave:Connect(function() tw(langBtn, 0.15, { BackgroundColor3 = C.sky }) end)
 
     closeBtn.Activated:Connect(function()
         tw(panel, 0.25, { Position = UDim2.new(0, -panel.AbsoluteSize.X, 0.5, panel.Position.Y.Offset) })

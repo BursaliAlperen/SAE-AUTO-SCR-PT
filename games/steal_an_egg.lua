@@ -45,11 +45,41 @@ if not LP then LOG("FATAL: LocalPlayer missing"); return end
 
 -- Each injection gets its own runtime id. Older injections stop their loops
 -- after a newer copy replaces this value in the shared executor environment.
+-- Session Guard 6.1
+-- This guard protects the script's own runtime from duplicate injections and
+-- cleans up transient state when the Roblox session ends. It intentionally
+-- does NOT intercept or bypass server-side kicks/anti-cheat decisions.
+local function svSessionGuard()
+    local env = (type(getgenv) == "function" and getgenv()) or _G
+    local old = env and env.SV_SESSION_GUARD
+    local token = tostring({})
+    if env then
+        env.SV_SESSION_GUARD = token
+    end
+    return env, token, old
+end
+local SV_GUARD_ENV, SV_GUARD_TOKEN = svSessionGuard()
+local function svGuardCurrent()
+    return not SV_GUARD_ENV or SV_GUARD_ENV.SV_SESSION_GUARD == SV_GUARD_TOKEN
+end
+
 local GLOBAL_ENV = (type(getgenv) == "function" and getgenv()) or _G
 local SV_RUNTIME_ID = tostring({})
 if GLOBAL_ENV then
     GLOBAL_ENV.SV_RUNTIME_ID = SV_RUNTIME_ID
 end
+-- Remote safety: client-side pacing only. Server remains authoritative.
+local SV_REMOTE_COOLDOWN = {}
+local function svAllowRemote(key, interval)
+    local now = os.clock()
+    local last = SV_REMOTE_COOLDOWN[key] or 0
+    if now - last < (interval or 0.35) then
+        return false
+    end
+    SV_REMOTE_COOLDOWN[key] = now
+    return true
+end
+
 local function isCurrentRuntime()
     return not GLOBAL_ENV or GLOBAL_ENV.SV_RUNTIME_ID == SV_RUNTIME_ID
 end
@@ -852,7 +882,7 @@ local function cleanStaleESP(kind)
 end
 
 task.spawn(function()
-    while isCurrentRuntime() do
+    while isCurrentRuntime() and svGuardCurrent() do
         pcall(function()
             if S.espEgg then
                 cleanStaleESP("SV_ESP_EGG")
@@ -949,7 +979,7 @@ end)
 -- PLAYER LOOPS
 -- ═══════════════════════════════════════════════════════════════
 LP.Idled:Connect(function()
-    if not isCurrentRuntime() then return end
+    if not isCurrentRuntime() or not svGuardCurrent() then return end
     if S.antiAfk and VirtualUser then
         pcall(function()
             VirtualUser:CaptureController()

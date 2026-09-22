@@ -63,17 +63,22 @@ local function svGuardCurrent()
     return not SV_GUARD_ENV or SV_GUARD_ENV.SV_SESSION_GUARD == SV_GUARD_TOKEN
 end
 
+local SV_MODULE_CONFIG = ((type(getgenv) == "function" and getgenv()) or _G).SV_SAE_CONFIG or {}
+local SV_MODULE_RUNTIME = ((type(getgenv) == "function" and getgenv()) or _G).SV_SAE_RUNTIME_MODULE
+local SV_MODULE_SAFETY = ((type(getgenv) == "function" and getgenv()) or _G).SV_SAE_SAFETY_MODULE
+local SV_MODULE_UI = ((type(getgenv) == "function" and getgenv()) or _G).SV_SAE_UI_MODULE
+
 local GLOBAL_ENV = (type(getgenv) == "function" and getgenv()) or _G
 local SV_RUNTIME_ID = tostring({})
 if GLOBAL_ENV then
     GLOBAL_ENV.SV_RUNTIME_ID = SV_RUNTIME_ID
 end
 -- Remote safety: client-side pacing only. Server remains authoritative.
-local SV_REMOTE_COOLDOWN = {}
+local SV_REMOTE_COOLDOWN = {}\nlocal SV_REMOTE_INTERVAL = tonumber(SV_MODULE_CONFIG.REMOTE_COOLDOWN) or 0.35
 local function svAllowRemote(key, interval)
     local now = os.clock()
     local last = SV_REMOTE_COOLDOWN[key] or 0
-    if now - last < (interval or 0.35) then
+    if now - last < (interval or SV_REMOTE_INTERVAL) then
         return false
     end
     SV_REMOTE_COOLDOWN[key] = now

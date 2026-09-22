@@ -1,6 +1,6 @@
--- ScriptVault — Steal an Egg 6.2 modular profile
--- Thin orchestrator: config / runtime / safety / UI / core are separated.
--- The core remains self-contained for compatibility with executor loadstring environments.
+-- ScriptVault — Steal an Egg 6.3 modular profile
+-- Loads configuration/guards/diagnostics first, then the existing feature core.
+-- Diagnostics only discover runtime objects; they never invoke or hook remotes.
 
 local BASE = "https://raw.githubusercontent.com/BursaliAlperen/SAE-AUTO-SCR-PT/main/games/steal_an_egg/"
 local ENV = (type(getgenv) == "function" and getgenv()) or _G
@@ -21,67 +21,91 @@ local function httpGet(path)
             if type(game.HttpGetAsync) == "function" then return game:HttpGetAsync(url) end
         end,
         function()
-            local req = rawget(_G,"request") or rawget(_G,"http_request")
+            local req = rawget(_G, "request") or rawget(_G, "http_request")
             if type(req) == "function" then
-                local r = req({Url=url,Method="GET"})
-                if type(r)=="table" then return r.Body or r.body end
+                local r = req({Url=url, Method="GET"})
+                if type(r) == "table" then return r.Body or r.body end
             end
         end,
         function()
-            local syn = rawget(_G,"syn")
-            if type(syn)=="table" and type(syn.request)=="function" then
-                local r=syn.request({Url=url,Method="GET"})
-                if type(r)=="table" then return r.Body or r.body end
+            local syn = rawget(_G, "syn")
+            if type(syn) == "table" and type(syn.request) == "function" then
+                local r = syn.request({Url=url, Method="GET"})
+                if type(r) == "table" then return r.Body or r.body end
             end
         end,
     }
-    for _,attempt in ipairs(attempts) do
+
+    for _, attempt in ipairs(attempts) do
         local ok, body = pcall(attempt)
-        if ok and type(body)=="string" and #body>0 then return body end
+        if ok and type(body) == "string" and #body > 0 then return body end
     end
-    return nil, "HTTP request failed: "..path
+    return nil, "HTTP request failed: " .. path
 end
 
 local function loadModule(path)
     if not current() then return nil, "profile superseded" end
-    local source,err=httpGet(path)
-    if not source then return nil,err end
-    local chunk,compileErr=loadstring(source)
-    if type(chunk)~="function" then return nil,compileErr end
-    local ok,result=pcall(chunk)
-    if not ok then return nil,result end
+    local source, err = httpGet(path)
+    if not source then return nil, err end
+    local chunk, compileErr = loadstring(source)
+    if type(chunk) ~= "function" then return nil, compileErr end
+    local ok, result = pcall(chunk)
+    if not ok then return nil, result end
     return result
 end
 
-local Config, Runtime, Safety, UI
-Config = loadModule("config.lua")
-Runtime = loadModule("runtime.lua")
-Safety = loadModule("safety.lua")
-UI = loadModule("ui.lua")
+local Config = loadModule("config.lua")
+local Runtime = loadModule("runtime.lua")
+local Safety = loadModule("safety.lua")
+local UI = loadModule("ui.lua")
+local Diagnostics = loadModule("diagnostics.lua")
 
-if not Config then Config = {VERSION="6.2.0",REMOTE_COOLDOWN=0.35} end
+if not Config then Config = {VERSION="6.3.0", REMOTE_COOLDOWN=0.35, PRIMARY_PLACE_IDS={107778070777162}} end
+
+if Diagnostics then
+    local ok, report = pcall(function()
+        local result = Diagnostics.scan()
+        Diagnostics.publish(result)
+        return result
+    end)
+
+    if ok and report and not Diagnostics.isTargetPlace(Config) then
+        warn("[ScriptVault SAE 6.3] Wrong PlaceId: " .. tostring(report.placeId))
+        return false, "Wrong Steal an Egg place"
+    end
+
+    if not ok then
+        warn("[ScriptVault SAE 6.3] Diagnostics failed: " .. tostring(report))
+    end
+end
+
 if ENV then
     ENV.SV_SAE_CONFIG = Config
     ENV.SV_SAE_RUNTIME_MODULE = Runtime
     ENV.SV_SAE_SAFETY_MODULE = Safety
     ENV.SV_SAE_UI_MODULE = UI
+    ENV.SV_SAE_DIAGNOSTICS_MODULE = Diagnostics
+end
+
+if Runtime and type(Runtime.stopPrevious) == "function" then
+    pcall(Runtime.stopPrevious)
 end
 
 local coreSource, err = httpGet("core.lua")
 if not coreSource then
-    warn("[ScriptVault SAE 6.2] "..tostring(err))
+    warn("[ScriptVault SAE 6.3] " .. tostring(err))
     return false, err
 end
 
 local core, compileErr = loadstring(coreSource)
 if type(core) ~= "function" then
-    warn("[ScriptVault SAE 6.2] Core compile error: "..tostring(compileErr))
+    warn("[ScriptVault SAE 6.3] Core compile error: " .. tostring(compileErr))
     return false, compileErr
 end
 
 local ok, runtimeErr = pcall(core)
 if not ok then
-    warn("[ScriptVault SAE 6.2] Core runtime error: "..tostring(runtimeErr))
+    warn("[ScriptVault SAE 6.3] Core runtime error: " .. tostring(runtimeErr))
     return false, runtimeErr
 end
 

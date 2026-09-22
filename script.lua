@@ -578,8 +578,22 @@ local function findRemotes()
 end
 
 local function isMyEgg(o)
-    local owner = o:GetAttribute("Owner") or (o:FindFirstChild("Owner") and o.Owner.Value)
-    return owner == LP or owner == LP.Name or owner == LP.UserId
+    local owner = o:GetAttribute("Owner")
+    if owner == LP or owner == LP.Name or owner == LP.UserId then
+        return true
+    end
+
+    local ownerObj = o:FindFirstChild("Owner")
+    if ownerObj then
+        local ok, value = pcall(function()
+            return ownerObj.Value
+        end)
+        if ok and (value == LP or value == LP.Name or value == LP.UserId) then
+            return true
+        end
+    end
+
+    return false
 end
 
 local function findEggs()
@@ -591,7 +605,7 @@ local function findEggs()
             local n = (o.Name or ""):lower()
             if n:find("egg") and not isMyEgg(o) then
                 if not (o:GetAttribute("Claimed") or o:GetAttribute("Stolen") or o:GetAttribute("Taken")) then
-                    local p = o:IsA("BasePart") and o or o.PrimaryPart
+                    local p = o:IsA("BasePart") and o or o.PrimaryPart or o:FindFirstChildWhichIsA("BasePart", true)
                     if p then
                         local d = (p.Position - h.Position).Magnitude
                         if d <= CFG.SCAN_RADIUS then
@@ -849,16 +863,30 @@ LP.Idled:Connect(function()
     end
 end)
 
+local noclipOriginal = {}
+
 task.spawn(function()
     while true do
         if S.noclip then
             local c = LP.Character
             if c then
                 for _, p in ipairs(c:GetDescendants()) do
-                    if p:IsA("BasePart") and p.CanCollide then
-                        p.CanCollide = false
+                    if p:IsA("BasePart") then
+                        if noclipOriginal[p] == nil then
+                            noclipOriginal[p] = p.CanCollide
+                        end
+                        if p.CanCollide then
+                            p.CanCollide = false
+                        end
                     end
                 end
+            end
+        else
+            for p, original in pairs(noclipOriginal) do
+                if p and p.Parent then
+                    p.CanCollide = original
+                end
+                noclipOriginal[p] = nil
             end
         end
         task.wait(0.2)
@@ -1444,7 +1472,17 @@ local function buildPanel(parent, notif)
                         if toggles[k] then toggles[k](v, true) end
                     end
                 end
+
+                local shouldRun = S.masterFarm or S.autoSteal or S.autoHatch
+                if shouldRun then
+                    Farm:start()
+                else
+                    Farm:stop()
+                end
+
                 notif:push(t("s_profile"), t("m_loaded"), "success", 2)
+            else
+                notif:push(t("s_profile"), "Invalid save data", "error", 2)
             end
         else
             notif:push(t("s_profile"), "No save data", "warn", 2)
@@ -2013,7 +2051,13 @@ UIS.InputBegan:Connect(function(input, processed)
     end
 end)
 
-game:BindToClose(function() Farm:stop() end)
+pcall(function()
+    if game.BindToClose then
+        game:BindToClose(function()
+            pcall(function() Farm:stop() end)
+        end)
+    end
+end)
 
 showLoading(SCREEN, function()
     pcall(findMyBase)

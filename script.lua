@@ -36,7 +36,10 @@ pcall(function() VirtualUser = game:GetService("VirtualUser") end)
 pcall(function() CoreGuiService = game:GetService("CoreGui") end)
 pcall(function() StatsSvc = game:GetService("Stats") end)
 
-if not Players then LOG("FATAL: Players missing"); return end
+if not Players or not UIS or not TS or not WS or not RS then
+    LOG("FATAL: Required Roblox services are unavailable")
+    return
+end
 local LP = Players.LocalPlayer
 if not LP then LOG("FATAL: LocalPlayer missing"); return end
 LOG("Player:", LP.Name)
@@ -307,7 +310,7 @@ CurLang = loadLang()
 -- STATE
 -- ═══════════════════════════════════════════════════════════════
 local CFG = {
-    VER = "6.0.0",
+    VER = "6.0.1",
     MAX_SPEED = 26, MIN_SPEED = 16,
     SCAN_RADIUS = 500,
     DRAG_PX = 18, TAP = 0.30,
@@ -382,7 +385,7 @@ local function fmtTime(s)
 end
 local function humanMove(targetPos)
     local h = hrp()
-    if not h then return false end
+    if not h or not TS or typeof(targetPos) ~= "Vector3" then return false end
     local d = (targetPos - h.Position).Magnitude
     if d > CFG.SCAN_RADIUS + 100 then return false end
     local dur = math.clamp(d / (CFG.MAX_SPEED * 4), 0.15, 1.4) * (0.85 + math.random() * 0.35)
@@ -525,6 +528,7 @@ end
 local Refs = { myBase = nil, stealR = {}, sellR = {}, hatchR = {} }
 
 local function findMyBase()
+    if not WS then return false end
     for _, obj in ipairs(WS:GetChildren()) do
         if obj:IsA("Model") or obj:IsA("Folder") then
             local ov = obj:FindFirstChild("Owner")
@@ -534,7 +538,7 @@ local function findMyBase()
                 return true
             end
             local att = obj:GetAttribute("Owner")
-            if att == LP.Name or att == LP.UserId then
+            if att == LP.Name or att == LP.UserId or att == tostring(LP.UserId) then
                 Refs.myBase = obj
                 dbg("Base (attr): " .. obj.Name, "success")
                 return true
@@ -551,22 +555,28 @@ end
 
 local function findRemotes()
     Refs.stealR, Refs.sellR, Refs.hatchR = {}, {}, {}
+    if not RS then return end
+
     local folders = {
         RS:FindFirstChild("Remotes"),
         RS:FindFirstChild("RemoteEvents"),
         RS:FindFirstChild("Networking"),
         RS,
     }
+    local seenContainers, seenRemotes = {}, {}
+
     for _, f in ipairs(folders) do
-        if f then
+        if f and not seenContainers[f] then
+            seenContainers[f] = true
             for _, r in ipairs(f:GetDescendants()) do
-                if r:IsA("RemoteEvent") or r:IsA("RemoteFunction") then
+                if (r:IsA("RemoteEvent") or r:IsA("RemoteFunction")) and not seenRemotes[r] then
+                    seenRemotes[r] = true
                     local n = r.Name:lower()
-                    if n:find("steal") or n:find("grab") then
+                    if n:find("steal") or n:find("grab") or n:find("pickup") or n:find("collect") then
                         table.insert(Refs.stealR, r)
                     elseif n:find("sell") then
                         table.insert(Refs.sellR, r)
-                    elseif n:find("hatch") then
+                    elseif n:find("hatch") or n:find("open") then
                         table.insert(Refs.hatchR, r)
                     end
                 end
@@ -627,6 +637,13 @@ local function findEggs()
 end
 
 local function stealOne(egg)
+    if type(egg) ~= "table" or not egg.obj or not egg.part then
+        return false
+    end
+    if not egg.obj.Parent or not egg.part.Parent then
+        return false
+    end
+
     S.stats.tries = S.stats.tries + 1
     if not humanMove(egg.part.Position) then
         return false
@@ -758,16 +775,23 @@ function Farm:stop()
         pcall(task.cancel, self.thread)
         self.thread = nil
     end
-    -- Clear ESP
-    for _, obj in ipairs(WS:GetDescendants()) do
-        local hl = obj:FindFirstChild("SV_ESP")
-        if hl then pcall(function() hl:Destroy() end) end
-    end
     if self.onStatus then pcall(self.onStatus, false) end
     dbg("Farm stopped")
 end
 
 local toggles = {}
+
+local function farmShouldRun()
+    return S.masterFarm or S.autoSteal or S.autoHatch
+end
+
+local function syncFarm()
+    if farmShouldRun() then
+        Farm:start()
+    else
+        Farm:stop()
+    end
+end
 
 function Farm:toggle()
     if self.running then
@@ -779,72 +803,131 @@ function Farm:toggle()
         end
         return false
     end
+
     S.masterFarm = true
     for _, k in ipairs({"autoSteal","autoReturn","autoHatch"}) do
         S[k] = true
         if toggles[k] then toggles[k](true, true) end
     end
-    self:start()
+    syncFarm()
     return true
 end
 
 -- ═══════════════════════════════════════════════════════════════
 -- ESP LOOP
 -- ═══════════════════════════════════════════════════════════════
+local ESP_FOLDER = Instance.new("Folder")
+ESP_FOLDER.Name = "ScriptVault_ESP"
+pcall(function()
+    local old = WS:FindFirstChild("ScriptVault_ESP")
+    if old then old:Destroy() end
+    ESP_FOLDER.Parent = WS
+end)
+
+local function clearESP(kind)
+    for _, child in ipairs(ESP_FOLDER:GetChildren()) do
+        if not kind or child.Name == kind then
+            pcall(function() child:Destroy() end)
+        end
+    end
+end
+
+local function cleanStaleESP(kind)
+    for _, child in ipairs(ESP_FOLDER:GetChildren()) do
+        if child.Name == kind and (not child.Adornee or not child.Adornee.Parent) then
+            pcall(function() child:Destroy() end)
+        end
+    end
+end
+
 task.spawn(function()
     while true do
         pcall(function()
-            -- Egg ESP
             if S.espEgg then
+                cleanStaleESP("SV_ESP_EGG")
                 local eggs = findEggs()
                 for _, egg in ipairs(eggs) do
-                    local p = egg.part
-                    if p and not p:FindFirstChild("SV_ESP") then
+                    local target = egg.obj
+                    local exists = false
+                    for _, hl in ipairs(ESP_FOLDER:GetChildren()) do
+                        if hl.Name == "SV_ESP_EGG" and hl.Adornee == target then
+                            exists = true
+                            break
+                        end
+                    end
+                    if not exists then
                         local hl = Instance.new("Highlight")
-                        hl.Name = "SV_ESP"
+                        hl.Name = "SV_ESP_EGG"
+                        hl.Adornee = target
                         hl.FillColor = C.gold
                         hl.FillTransparency = 0.55
                         hl.OutlineColor = C.white
                         hl.OutlineTransparency = 0.15
                         hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-                        hl.Parent = p
+                        hl.Parent = ESP_FOLDER
                     end
                 end
             else
-                for _, obj in ipairs(WS:GetDescendants()) do
-                    local hl = obj:FindFirstChild("SV_ESP")
-                    if hl then hl:Destroy() end
-                end
+                clearESP("SV_ESP_EGG")
             end
-            -- Player ESP
+
             if S.espPlayer then
+                cleanStaleESP("SV_ESP_PLAYER")
                 for _, pl in ipairs(Players:GetPlayers()) do
                     if pl ~= LP and pl.Character then
-                        local hr = pl.Character:FindFirstChild("HumanoidRootPart")
-                        if hr and not hr:FindFirstChild("SV_ESP") then
+                        local target = pl.Character
+                        local exists = false
+                        for _, hl in ipairs(ESP_FOLDER:GetChildren()) do
+                            if hl.Name == "SV_ESP_PLAYER" and hl.Adornee == target then
+                                exists = true
+                                break
+                            end
+                        end
+                        if not exists then
                             local hl = Instance.new("Highlight")
-                            hl.Name = "SV_ESP"
+                            hl.Name = "SV_ESP_PLAYER"
+                            hl.Adornee = target
                             hl.FillColor = C.danger
                             hl.FillTransparency = 0.65
                             hl.OutlineColor = C.white
                             hl.OutlineTransparency = 0.2
-                            hl.Parent = hr
+                            hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+                            hl.Parent = ESP_FOLDER
                         end
                     end
                 end
+            else
+                clearESP("SV_ESP_PLAYER")
             end
-            -- Base ESP
+
             if S.espBase and Refs.myBase then
-                local bp = Refs.myBase:IsA("Model") and Refs.myBase.PrimaryPart or Refs.myBase
-                if bp and not bp:FindFirstChild("SV_ESP") then
-                    local hl = Instance.new("Highlight")
-                    hl.Name = "SV_ESP"
-                    hl.FillColor = C.success
-                    hl.FillTransparency = 0.75
-                    hl.OutlineColor = C.success
-                    hl.OutlineTransparency = 0.15
-                    hl.Parent = bp
+                cleanStaleESP("SV_ESP_BASE")
+                local target = Refs.myBase
+                if not target:IsA("Model") and not target:IsA("BasePart") then
+                    target = target:FindFirstChildWhichIsA("BasePart", true)
                 end
+                if target then
+                    local exists = false
+                    for _, hl in ipairs(ESP_FOLDER:GetChildren()) do
+                        if hl.Name == "SV_ESP_BASE" and hl.Adornee == target then
+                            exists = true
+                            break
+                        end
+                    end
+                    if not exists then
+                        local hl = Instance.new("Highlight")
+                        hl.Name = "SV_ESP_BASE"
+                        hl.Adornee = target
+                        hl.FillColor = C.success
+                        hl.FillTransparency = 0.75
+                        hl.OutlineColor = C.success
+                        hl.OutlineTransparency = 0.15
+                        hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+                        hl.Parent = ESP_FOLDER
+                    end
+                end
+            else
+                clearESP("SV_ESP_BASE")
             end
         end)
         task.wait(0.5)
@@ -1029,7 +1112,17 @@ function U.toggle(parent, nameKey, descKey, stateKey, onChange, reg)
     track.Activated:Connect(function() apply(not S[stateKey], false) end)
     card.MouseEnter:Connect(function() tw(card, 0.15, { BackgroundColor3 = C.hover }) end)
     card.MouseLeave:Connect(function() tw(card, 0.15, { BackgroundColor3 = C.card }) end)
-    if reg then reg[stateKey] = apply end
+    if reg then
+        local previous = reg[stateKey]
+        if previous then
+            reg[stateKey] = function(on, silent)
+                previous(on, silent)
+                apply(on, silent)
+            end
+        else
+            reg[stateKey] = apply
+        end
+    end
     return wrap
 end
 
@@ -1391,7 +1484,11 @@ local function buildPanel(parent, notif)
         local on = not S.masterFarm
         S.masterFarm = on
         if toggles.masterFarm then toggles.masterFarm(on, true) end
-        if on then Farm:start() else Farm:stop() end
+        for _, k in ipairs({"autoSteal", "autoReturn", "autoHatch"}) do
+            S[k] = on
+            if toggles[k] then toggles[k](on, true) end
+        end
+        syncFarm()
     end)
     task.spawn(function()
         while liveCard.Parent do
@@ -1421,9 +1518,9 @@ local function buildPanel(parent, notif)
     end, toggles)
 
     U.section(dp, "s_steal", C.warn)
-    U.toggle(dp, "t_steal", "t_steal_d", "autoSteal", nil, toggles)
-    U.toggle(dp, "t_return", "t_return_d", "autoReturn", nil, toggles)
-    U.toggle(dp, "t_hatch", "t_hatch_d", "autoHatch", nil, toggles)
+    U.toggle(dp, "t_steal", "t_steal_d", "autoSteal", function() syncFarm() end, toggles)
+    U.toggle(dp, "t_return", "t_return_d", "autoReturn", function() syncFarm() end, toggles)
+    U.toggle(dp, "t_hatch", "t_hatch_d", "autoHatch", function() syncFarm() end, toggles)
 
     U.section(dp, "s_escape", C.accent)
     U.button(dp, "btn_collect", "primary", function()
@@ -1446,9 +1543,9 @@ local function buildPanel(parent, notif)
     -- FARM
     local fp = pages.farm
     U.section(fp, "s_steal", C.warn)
-    U.toggle(fp, "t_steal", "t_steal_d", "autoSteal", nil, toggles)
-    U.toggle(fp, "t_return", "t_return_d", "autoReturn", nil, toggles)
-    U.toggle(fp, "t_hatch", "t_hatch_d", "autoHatch", nil, toggles)
+    U.toggle(fp, "t_steal", "t_steal_d", "autoSteal", function() syncFarm() end, toggles)
+    U.toggle(fp, "t_return", "t_return_d", "autoReturn", function() syncFarm() end, toggles)
+    U.toggle(fp, "t_hatch", "t_hatch_d", "autoHatch", function() syncFarm() end, toggles)
 
     U.section(fp, "s_anti", C.success)
     local info = mk("Frame", {
@@ -1566,12 +1663,7 @@ local function buildPanel(parent, notif)
                     end
                 end
 
-                local shouldRun = S.masterFarm or S.autoSteal or S.autoHatch
-                if shouldRun then
-                    Farm:start()
-                else
-                    Farm:stop()
-                end
+                syncFarm()
 
                 notif:push(t("s_profile"), t("m_loaded"), "success", 2)
             else

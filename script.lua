@@ -924,8 +924,12 @@ function U.card(parent, height)
         Parent = wrap, BackgroundColor3 = C.card, BorderSizePixel = 0,
         Size = UDim2.new(1, 0, 0, height), ZIndex = 9002,
     })
-    mk("UICorner", { Parent = card, CornerRadius = UDim.new(0, 14) })
-    mk("UIStroke", { Parent = card, Color = C.border, Thickness = 1, Transparency = 0.35 })
+    mk("UICorner", { Parent = card, CornerRadius = UDim.new(0, 16) })
+    mk("UIGradient", { Parent = card, Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, C.card),
+        ColorSequenceKeypoint.new(1, C.bg_deep),
+    }), Rotation = 90 })
+    mk("UIStroke", { Parent = card, Color = C.border, Thickness = 1, Transparency = 0.25 })
     return wrap, card
 end
 
@@ -1335,6 +1339,11 @@ local function buildPanel(parent, notif)
     -- LIVE CONTROL CARD
     local liveWrap, liveCard = U.card(dp, 92)
     liveCard.BackgroundColor3 = C.bg_deep
+    local liveGradient = mk("UIGradient", { Parent = liveCard, Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, C.bg_deep),
+        ColorSequenceKeypoint.new(0.65, C.card_alt),
+        ColorSequenceKeypoint.new(1, C.sky),
+    }), Rotation = 20 })
     local liveAccent = mk("Frame", {
         Parent = liveCard, BackgroundColor3 = C.primary,
         Size = UDim2.new(0, 4, 1, 0), BorderSizePixel = 0, ZIndex = 9003,
@@ -1346,6 +1355,12 @@ local function buildPanel(parent, notif)
         Font = Enum.Font.GothamBold, Text = "LIVE CONTROL CENTER",
         TextColor3 = C.text, TextSize = 11, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 9004,
     })
+    local livePulse = mk("Frame", {
+        Parent = liveCard, BackgroundColor3 = C.primary_l, BackgroundTransparency = 0.88,
+        Position = UDim2.new(1, -120, 0, 10), Size = UDim2.new(0, 96, 0, 72),
+        BorderSizePixel = 0, ZIndex = 9003,
+    })
+    mk("UICorner", { Parent = livePulse, CornerRadius = UDim.new(1, 0) })
     local liveState = mk("TextLabel", {
         Parent = liveCard, BackgroundTransparency = 1,
         Position = UDim2.new(0, 16, 0, 34), Size = UDim2.new(0.55, 0, 0, 20),
@@ -1366,6 +1381,12 @@ local function buildPanel(parent, notif)
         AutoButtonColor = false, BorderSizePixel = 0, ZIndex = 9004,
     })
     mk("UICorner", { Parent = quick, CornerRadius = UDim.new(0, 10) })
+    quick.MouseEnter:Connect(function()
+        tw(quick, 0.15, { Size = UDim2.new(0, 98, 0, 38), Position = UDim2.new(1, -109, 0.5, 0) })
+    end)
+    quick.MouseLeave:Connect(function()
+        tw(quick, 0.15, { Size = UDim2.new(0, 92, 0, 34), Position = UDim2.new(1, -106, 0.5, 0) })
+    end)
     quick.Activated:Connect(function()
         local on = not S.masterFarm
         S.masterFarm = on
@@ -1378,6 +1399,8 @@ local function buildPanel(parent, notif)
             liveState.Text = running and "● RUNNING" or "● IDLE"
             liveState.TextColor3 = running and C.success or C.text_mut
             liveAccent.BackgroundColor3 = running and C.success or C.primary
+            livePulse.BackgroundColor3 = running and C.success_l or C.primary_l
+            livePulse.BackgroundTransparency = running and 0.82 or 0.9
             quick.Text = running and "STOP FARM" or "START FARM"
             quick.BackgroundColor3 = running and C.danger or C.primary
             liveMeta.Text = string.format("Eggs %d  •  Tries %d  •  Pets %d", S.stats.eggs, S.stats.tries, S.stats.pets)
@@ -1636,13 +1659,13 @@ local function buildPanel(parent, notif)
 
     -- FOOTER
     local ft = mk("Frame", {
-        Parent = panel, BackgroundColor3 = C.white,
+        Parent = panel, BackgroundColor3 = C.bg_deep,
         Position = UDim2.new(0, 0, 1, -40), Size = UDim2.new(1, 0, 0, 40),
         BorderSizePixel = 0, ZIndex = 9002, ClipsDescendants = true,
     })
     mk("UICorner", { Parent = ft, CornerRadius = UDim.new(0, 22) })
     mk("Frame", {
-        Parent = ft, BackgroundColor3 = C.white,
+        Parent = ft, BackgroundColor3 = C.bg_deep,
         Position = UDim2.new(0, 0, 0, 0), Size = UDim2.new(1, 0, 0.5, 0),
         BorderSizePixel = 0, ZIndex = 9002,
     })

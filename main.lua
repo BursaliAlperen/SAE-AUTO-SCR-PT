@@ -1,5 +1,14 @@
 -- ScriptVault direct loader
-local SCRIPT_URL = "https://raw.githubusercontent.com/BursaliAlperen/SAE-AUTO-SCR-PT/main/script.lua"
+local BASE_URL = "https://raw.githubusercontent.com/BursaliAlperen/SAE-AUTO-SCR-PT/main/"
+local GAME_PROFILES = {
+    [920587237] = "games/adopt_me.lua",
+}
+local DEFAULT_PROFILE = "script.lua"
+
+local function getScriptPath()
+    local id = tonumber(game.PlaceId)
+    return GAME_PROFILES[id] or DEFAULT_PROFILE
+end
 
 local function httpGet(url)
     local attempts = {
@@ -44,7 +53,9 @@ local function httpGet(url)
 end
 
 local function run()
-    local url = SCRIPT_URL .. "?v=" .. tostring(os.time())
+    local path = getScriptPath()
+    local url = BASE_URL .. path .. "?v=" .. tostring(os.time())
+    print("[ScriptVault] Loading profile:", path)
     local source, err = httpGet(url)
     if not source then
         warn("[ScriptVault] " .. tostring(err))

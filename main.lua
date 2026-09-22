@@ -1,16 +1,6 @@
--- ScriptVault multi-game direct loader
--- Game-specific profiles are isolated under /games; unknown places use generic.lua.
-local BASE_URL = "https://raw.githubusercontent.com/BursaliAlperen/SAE-AUTO-SCR-PT/main/"
-local GAME_PROFILES = {
-    [920587237] = "games/adopt_me.lua",
-    [107778070777162] = "games/steal_an_egg.lua",
-}
-local DEFAULT_PROFILE = "games/generic.lua"
-
-local function getScriptPath()
-    local id = tonumber(game.PlaceId)
-    return GAME_PROFILES[id] or DEFAULT_PROFILE
-end
+-- ScriptVault — Steal an Egg only
+local BASE_URL = "https://raw.githubusercontent.com/BursaliAlperen/SAE-AUTO-SCRIPT/main/"
+local PROFILE = "games/steal_an_egg.lua"
 
 local function httpGet(url)
     local attempts = {
@@ -31,26 +21,42 @@ local function httpGet(url)
             end
         end,
     }
-    for _,attempt in ipairs(attempts) do
-        local ok,body=pcall(attempt)
-        if ok and type(body)=="string" and #body>0 then return body end
+    for _, attempt in ipairs(attempts) do
+        local ok, body = pcall(attempt)
+        if ok and type(body) == "string" and #body > 0 then return body end
     end
-    return nil,"HTTP request failed in all supported modes"
+    return nil, "HTTP request failed in all supported modes"
 end
 
 local function run()
-    local path=getScriptPath()
-    local url=BASE_URL..path.."?v="..tostring(os.time())
-    print("[ScriptVault] Loading profile:",path)
-    local source,err=httpGet(url)
-    if not source then warn("[ScriptVault] "..tostring(err)); return false,err end
+    if tonumber(game.PlaceId) ~= 107778070777162 then
+        warn("[ScriptVault] This loader is only for Steal an Egg.")
+        return false, "Wrong PlaceId"
+    end
 
-    local chunk,compileErr=loadstring(source)
-    if type(chunk)~="function" then warn("[ScriptVault] Compile error: "..tostring(compileErr)); return false,compileErr end
+    local url = BASE_URL .. PROFILE .. "?v=" .. tostring(os.time())
+    print("[ScriptVault] Loading Steal an Egg")
+    local source, err = httpGet(url)
+    if not source then
+        warn("[ScriptVault] " .. tostring(err))
+        return false, err
+    end
 
-    local ok,result,resultErr=pcall(chunk)
-    if not ok then warn("[ScriptVault] Runtime error: "..tostring(result)); return false,result end
-    if result==false then warn("[ScriptVault] Profile failed: "..tostring(resultErr)); return false,resultErr end
+    local chunk, compileErr = loadstring(source)
+    if type(chunk) ~= "function" then
+        warn("[ScriptVault] Compile error: " .. tostring(compileErr))
+        return false, compileErr
+    end
+
+    local ok, result, resultErr = pcall(chunk)
+    if not ok then
+        warn("[ScriptVault] Runtime error: " .. tostring(result))
+        return false, result
+    end
+    if result == false then
+        warn("[ScriptVault] SAE profile failed: " .. tostring(resultErr))
+        return false, resultErr
+    end
     return true
 end
 

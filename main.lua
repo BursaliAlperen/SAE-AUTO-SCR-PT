@@ -1,9 +1,13 @@
--- ScriptVault direct loader
+-- ScriptVault multi-game direct loader
+-- Game-specific profiles are isolated under /games; unknown places use generic.lua.
 local BASE_URL = "https://raw.githubusercontent.com/BursaliAlperen/SAE-AUTO-SCR-PT/main/"
 local GAME_PROFILES = {
+    -- Adopt Me! (Uplift Games)
     [920587237] = "games/adopt_me.lua",
+    -- Steal An Egg (current primary experience)
+    [107778070777162] = "games/steal_an_egg.lua",
 }
-local DEFAULT_PROFILE = "script.lua"
+local DEFAULT_PROFILE = "games/generic.lua"
 
 local function getScriptPath()
     local id = tonumber(game.PlaceId)

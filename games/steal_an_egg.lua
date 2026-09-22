@@ -1,7 +1,7 @@
--- ScriptVault — Steal an Egg 6.4 modular profile
+-- ScriptVault — Steal an Egg 6.7 modular profile
 -- Runtime discovery + prompt-driven automation. No RemoteEvent/RemoteFunction calls.
 
-local BASE = "https://raw.githubusercontent.com/BursaliAlperen/SAE-AUTO-SCR-PT/main/games/steal_an_egg/"
+local BASE = "https://raw.githubusercontent.com/BursaliAlperen/SAE-AUTO-SCRIPT/main/games/steal_an_egg/"
 local ENV = (type(getgenv) == "function" and getgenv()) or _G
 local TOKEN = tostring({})
 if ENV then ENV.SV_SAE_PROFILE_TOKEN = TOKEN end
@@ -13,8 +13,12 @@ end
 local function httpGet(path)
     local url = BASE .. path .. "?v=" .. tostring(os.time())
     local attempts = {
-        function() if type(game.HttpGet) == "function" then return game:HttpGet(url) end end,
-        function() if type(game.HttpGetAsync) == "function" then return game:HttpGetAsync(url) end end,
+        function()
+            if type(game.HttpGet) == "function" then return game:HttpGet(url) end
+        end,
+        function()
+            if type(game.HttpGetAsync) == "function" then return game:HttpGetAsync(url) end
+        end,
         function()
             local req = rawget(_G, "request") or rawget(_G, "http_request")
             if type(req) == "function" then
@@ -55,7 +59,15 @@ local UI = loadModule("ui.lua")
 local Diagnostics = loadModule("diagnostics.lua")
 local Automation = loadModule("automation.lua")
 
-if not Config then Config = {VERSION="6.4.0", REMOTE_COOLDOWN=0.35, PRIMARY_PLACE_IDS={107778070777162}} end
+if not Config then
+    Config = {
+        VERSION="6.7.0",
+        GAME="Steal an Egg",
+        PRIMARY_PLACE_IDS={107778070777162},
+        REMOTE_COOLDOWN=0.35,
+        AUTO_AUTOMATION=true,
+    }
+end
 
 if Diagnostics then
     local ok, report = pcall(function()
@@ -64,10 +76,12 @@ if Diagnostics then
         return result
     end)
     if ok and report and not Diagnostics.isTargetPlace(Config) then
-        warn("[ScriptVault SAE 6.4] Wrong PlaceId: " .. tostring(report.placeId))
+        warn("[ScriptVault SAE 6.7] Wrong PlaceId: " .. tostring(report.placeId))
         return false, "Wrong Steal an Egg place"
     end
-    if not ok then warn("[ScriptVault SAE 6.4] Diagnostics failed: " .. tostring(report)) end
+    if not ok then
+        warn("[ScriptVault SAE 6.7] Diagnostics failed: " .. tostring(report))
+    end
 end
 
 if ENV then
@@ -85,26 +99,26 @@ end
 
 local coreSource, err = httpGet("core.lua")
 if not coreSource then
-    warn("[ScriptVault SAE 6.4] " .. tostring(err))
+    warn("[ScriptVault SAE 6.7] " .. tostring(err))
     return false, err
 end
 
 local core, compileErr = loadstring(coreSource)
 if type(core) ~= "function" then
-    warn("[ScriptVault SAE 6.4] Core compile error: " .. tostring(compileErr))
+    warn("[ScriptVault SAE 6.7] Core compile error: " .. tostring(compileErr))
     return false, compileErr
 end
 
 local ok, runtimeErr = pcall(core)
 if not ok then
-    warn("[ScriptVault SAE 6.4] Core runtime error: " .. tostring(runtimeErr))
+    warn("[ScriptVault SAE 6.7] Core runtime error: " .. tostring(runtimeErr))
     return false, runtimeErr
 end
 
 if Automation and type(Automation.start) == "function" and Config.AUTO_AUTOMATION then
     local started, automationErr = Automation.start()
     if not started then
-        warn("[ScriptVault SAE 6.4] Automation: " .. tostring(automationErr))
+        warn("[ScriptVault SAE 6.7] Automation: " .. tostring(automationErr))
     end
 end
 

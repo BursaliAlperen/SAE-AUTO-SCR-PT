@@ -14,5 +14,5 @@ return {
     PROGRESS_TIMEOUT = 2.5,
     RECOVERY_DELAY = 1.5,
     MAX_FAILURE_STREAK = 5,
-    HTTP_BASE = "https://raw.githubusercontent.com/BursaliAlperen/SAE-AUTO-SCR-PT/main/",
+    HTTP_BASE = "https://raw.githubusercontent.com/BursaliAlperen/SAE-AUTO-SCRIPT/main/",
 }
